@@ -17,16 +17,11 @@ on:
         required: false
         type: string
         default: 'x64'
-      msbuild-version:
-        description: 'MSBuild version to use (e.g., latest, 17.0, 16.0)'
-        required: false
-        type: string
-        default: 'latest'
       vs-version:
-        description: 'Visual Studio version (e.g., 2022, 2019)'
+        description: 'Visual Studio version (e.g., 2022, 2019). Use VS 17.x for VS 2022.'
         required: false
         type: string
-        default: '2022'
+        default: '17.0'
       build-args:
         description: 'Additional MSBuild arguments'
         required: false
@@ -69,7 +64,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     outputs:
       status: ${{ steps.build-step.outcome }}
     
@@ -82,6 +77,19 @@ jobs:
         with:
           msbuild-architecture: ${{ inputs.platform == 'ARM64' && 'arm64' || (inputs.platform == 'Win32' && 'x86' || 'x64') }}
           vs-version: ${{ inputs.vs-version }}
+      
+      - name: Debug Visual Studio / MSBuild detection
+        run: |
+          echo === vswhere location ===
+          where vswhere || echo vswhere not found
+          echo === vswhere output ===
+          "%ProgramData%\chocolatey\bin\vswhere.exe" -products * -requires Microsoft.Component.MSBuild -format json -latest -version 17.0 || (
+            echo vswhere query failed. Trying installer path...
+            "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -products * -requires Microsoft.Component.MSBuild -format json -latest -version 17.0 || echo no vswhere output
+          )
+          echo === msbuild in PATH ===
+          where msbuild || echo msbuild.exe not on PATH
+        shell: cmd
       
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
