@@ -1,0 +1,123 @@
+name: Build Visual Studio C++ Project
+
+on:
+  workflow_call:
+    inputs:
+      solution-path:
+        description: 'Path to the Visual Studio solution (.sln) or project (.vcxproj) file'
+        required: true
+        type: string
+      configuration:
+        description: 'Build configuration (e.g., Debug, Release)'
+        required: false
+        type: string
+        default: 'Release'
+      platform:
+        description: 'Build platform (e.g., x64, Win32, ARM64)'
+        required: false
+        type: string
+        default: 'x64'
+      msbuild-version:
+        description: 'MSBuild version to use (e.g., latest, 17.0, 16.0)'
+        required: false
+        type: string
+        default: 'latest'
+      vs-version:
+        description: 'Visual Studio version (e.g., 2022, 2019)'
+        required: false
+        type: string
+        default: '2022'
+      build-args:
+        description: 'Additional MSBuild arguments'
+        required: false
+        type: string
+        default: ''
+      enable-cache:
+        description: 'Enable caching of build artifacts'
+        required: false
+        type: boolean
+        default: true
+      run-tests:
+        description: 'Run tests after build'
+        required: false
+        type: boolean
+        default: false
+      test-executable:
+        description: 'Path to test executable (required if run-tests is true)'
+        required: false
+        type: string
+        default: ''
+      upload-artifacts:
+        description: 'Upload build artifacts'
+        required: false
+        type: boolean
+        default: false
+      artifact-name:
+        description: 'Name for the uploaded artifact'
+        required: false
+        type: string
+        default: 'build-output'
+      artifact-path:
+        description: 'Path to artifacts to upload'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      build-status:
+        description: 'Build status (success or failure)'
+        value: ${{ jobs.build.outputs.status }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      status: ${{ steps.build-step.outcome }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+          vs-version: ${{ inputs.vs-version }}
+      
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+      
+      - name: Restore NuGet packages
+        run: nuget restore "${{ inputs.solution-path }}"
+        shell: cmd
+      
+      - name: Setup cache
+        if: inputs.enable-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            **/obj
+            **/bin
+          key: ${{ runner.os }}-msbuild-${{ inputs.configuration }}-${{ inputs.platform }}-${{ hashFiles('**/*.vcxproj', '**/*.sln') }}
+          restore-keys: |
+            ${{ runner.os }}-msbuild-${{ inputs.configuration }}-${{ inputs.platform }}-
+            ${{ runner.os }}-msbuild-
+      
+      - name: Build project
+        id: build-step
+        run: |
+          msbuild "${{ inputs.solution-path }}" /p:Configuration=${{ inputs.configuration }} /p:Platform=${{ inputs.platform }} /m /v:minimal ${{ inputs.build-args }}
+        shell: cmd
+      
+      - name: Run tests
+        if: inputs.run-tests && inputs.test-executable != ''
+        run: |
+          "${{ inputs.test-executable }}"
+        shell: cmd
+      
+      - name: Upload build artifacts
+        if: inputs.upload-artifacts && inputs.artifact-path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+          retention-days: 7
