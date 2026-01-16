@@ -80,8 +80,9 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
         with:
-          msbuild-architecture: x64
+          msbuild-architecture: ${{ inputs.platform == 'ARM64' && 'arm64' || 'x64' }}
           vs-version: ${{ inputs.vs-version }}
+          msbuild-version: ${{ inputs.msbuild-version }}
       
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
@@ -111,7 +112,12 @@ jobs:
       - name: Run tests
         if: inputs.run-tests && inputs.test-executable != ''
         run: |
-          "${{ inputs.test-executable }}"
+          if exist "${{ inputs.test-executable }}" (
+            "${{ inputs.test-executable }}"
+          ) else (
+            echo Error: Test executable not found at ${{ inputs.test-executable }}
+            exit /b 1
+          )
         shell: cmd
       
       - name: Upload build artifacts
