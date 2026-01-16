@@ -76,7 +76,7 @@ jobs:
         uses: microsoft/setup-msbuild@v2
         with:
           msbuild-architecture: ${{ inputs.platform == 'ARM64' && 'arm64' || (inputs.platform == 'Win32' && 'x86' || 'x64') }}
-          vs-version: ${{ inputs.vs-version }}
+          vs-version: ${{ inputs.vs-version == '2022' && '17.0' || (inputs.vs-version == '2022.0' && '17.0' || inputs.vs-version) }}
       
       - name: Debug Visual Studio / MSBuild detection
         run: |
