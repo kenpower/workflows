@@ -82,7 +82,6 @@ jobs:
         with:
           msbuild-architecture: ${{ inputs.platform == 'ARM64' && 'arm64' || (inputs.platform == 'Win32' && 'x86' || 'x64') }}
           vs-version: ${{ inputs.vs-version }}
-          msbuild-version: ${{ inputs.msbuild-version }}
       
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
