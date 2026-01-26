@@ -1,0 +1,100 @@
+name: Reusable C++ SFML Build
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        description: 'Build platform (x86 or x64)'
+        required: false
+        type: string
+        default: 'x86'
+      configuration:
+        description: 'Build configuration (Debug or Release)'
+        required: false
+        type: string
+        default: 'Release'
+      sfml-version:
+        description: 'SFML version to download'
+        required: false
+        type: string
+        default: '3.0.2'
+      sfml-download-url:
+        description: 'SFML download URL'
+        required: false
+        type: string
+        default: 'https://github.com/SFML/SFML/releases/download/3.0.2/SFML-3.0.2-Windows.VS2022.x86.zip'
+      sfml-folder-name:
+        description: 'SFML extracted folder name (e.g., SFML-3.0.2)'
+        required: false
+        type: string
+        default: 'SFML-3.0.2'
+      msbuild-args:
+        description: 'Additional MSBuild arguments'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+      
+      - name: Cache SFML
+        id: cache-sfml
+        uses: actions/cache@v4
+        with:
+          path: C:\SFML
+          key: sfml-${{ inputs.sfml-version }}-windows-vs2022-${{ inputs.platform }}
+      
+      - name: Cache Build Output
+        uses: actions/cache@v4
+        with:
+          path: |
+            **/${{ inputs.configuration }}
+            **/*.iobj
+            **/*.ipdb
+          key: build-cache-${{ runner.os }}-${{ inputs.platform }}-${{ inputs.configuration }}-${{ hashFiles('**/*.cpp', '**/*.h', '**/*.vcxproj') }}
+          restore-keys: |
+            build-cache-${{ runner.os }}-${{ inputs.platform }}-${{ inputs.configuration }}-
+            build-cache-${{ runner.os }}-${{ inputs.platform }}-
+      
+      - name: Install SFML
+        if: steps.cache-sfml.outputs.cache-hit != 'true'
+        run: |
+          Invoke-WebRequest -Uri "${{ inputs.sfml-download-url }}" -OutFile sfml.zip
+          Expand-Archive sfml.zip -DestinationPath C:\SFML
+      
+      - name: Set SFML Environment
+        run: |
+          echo "Checking SFML directory structure..."
+          Get-ChildItem C:\SFML -Recurse -Directory | Select-Object FullName
+          echo "SFML_SDK=C:\SFML\${{ inputs.sfml-folder-name }}" >> $env:GITHUB_ENV
+      
+      - name: Find Solution File
+        id: find-sln
+        run: |
+          $slnFile = Get-ChildItem -Path . -Filter *.sln -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($slnFile) {
+            echo "SLN_FILE=$($slnFile.FullName)" >> $env:GITHUB_ENV
+            echo "Found solution: $($slnFile.FullName)"
+          } else {
+            echo "::error::No .sln file found in repository"
+            exit 1
+          }
+      
+      - name: Build
+        run: msbuild "$env:SLN_FILE" /p:Configuration=${{ inputs.configuration }} /p:Platform=${{ inputs.platform }} /m ${{ inputs.msbuild-args }}
+      
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ inputs.platform }}-${{ inputs.configuration }}
+          path: |
+            **/${{ inputs.configuration }}/*.exe
+            **/${{ inputs.configuration }}/*.dll
+          if-no-files-found: warn
