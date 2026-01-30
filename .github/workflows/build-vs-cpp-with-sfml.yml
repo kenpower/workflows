@@ -86,6 +86,9 @@ jobs:
             echo "::error::No .sln file found in repository"
             exit 1
           }
+    
+      - name: Restore NuGet Packages
+        run: nuget restore "$env:SLN_FILE"
       
       - name: Retarget Solution to Available SDK
         shell: pwsh
