@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: 'Release'
+      require-sfml:
+        description: 'Whether to install SFML'
+        required: false
+        type: boolean
+        default: false
       sfml-version:
         description: 'SFML version to download'
         required: false
@@ -45,6 +50,7 @@ jobs:
         uses: microsoft/setup-msbuild@v2
       
       - name: Cache SFML
+        if: inputs.require-sfml
         id: cache-sfml
         uses: actions/cache@v4
         with:
@@ -64,12 +70,13 @@ jobs:
             build-cache-${{ runner.os }}-${{ inputs.platform }}-
       
       - name: Install SFML
-        if: steps.cache-sfml.outputs.cache-hit != 'true'
+        if: inputs.require-sfml && steps.cache-sfml.outputs.cache-hit != 'true'
         run: |
           Invoke-WebRequest -Uri "${{ inputs.sfml-download-url }}" -OutFile sfml.zip
           Expand-Archive sfml.zip -DestinationPath C:\SFML
       
       - name: Set SFML Environment
+        if: inputs.require-sfml
         run: |
           echo "Checking SFML directory structure..."
           Get-ChildItem C:\SFML -Recurse -Directory | Select-Object FullName
